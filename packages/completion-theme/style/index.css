@@ -24,9 +24,9 @@
   overflow: auto;
 }
 
-.lsp-completer.jp-Completer {
+.lsp-completer .jp-Completer {
   --lsp-completer-max-label-width: 300px;
-  --lsp-completer-max-detail-width: 200px;
+  --lsp-completer-max-detail-width: 600px;
 }
 
 .lsp-completer .jp-Completer-match {
