@@ -391,7 +391,9 @@ export class HoverCM extends CodeMirrorIntegration {
       return false;
     }
 
-    const show_tooltip = getModifierState(event, this.modifierKey);
+    const show_tooltip =
+      this.modifierKey === ('MouseOver' as ModifierKey) ||
+      getModifierState(event, this.modifierKey);
 
     // currently the events are coming from notebook panel; ideally these would be connected to individual cells,
     // (only cells with code) instead, but this is more complex to implement right. In any case filtering

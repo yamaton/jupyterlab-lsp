@@ -35,6 +35,7 @@ export function until_ready(
 }
 
 export type ModifierKey =
+  | 'MouseOver'
   | 'Shift'
   | 'Alt'
   | 'AltGraph'
