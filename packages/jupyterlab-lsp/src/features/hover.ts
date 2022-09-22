@@ -242,9 +242,10 @@ export class HoverCM extends CodeMirrorIntegration {
   };
 
   protected maybeHideTooltip(mouseEvent: MouseEvent) {
+    const cushion = this.modifierKey === ('MouseOver' as ModifierKey) ? 8 : 50;
     if (
       typeof this.tooltip !== 'undefined' &&
-      !isCloseTo(this.tooltip.node, mouseEvent)
+      !isCloseTo(this.tooltip.node, mouseEvent, cushion)
     ) {
       this.tooltip.dispose();
     }
