@@ -481,6 +481,10 @@ export class HoverCM extends CodeMirrorIntegration {
           this.remove_range_highlight();
           return false;
         }
+      } else {
+        // add delay even if cache has the data
+        const delay_ms = this.settings.composite.throttlerDelay;
+        await new Promise(resolve => setTimeout(resolve, delay_ms));
       }
 
       return this.handleResponse(response_data, root_position, show_tooltip);
