@@ -371,11 +371,24 @@ export class HoverCM extends CodeMirrorIntegration {
   }
 
   protected is_useful_response(response: lsProtocol.Hover) {
-    return (
+    const criteria =
       response &&
       response.contents &&
-      !(Array.isArray(response.contents) && response.contents.length === 0)
-    );
+      !(
+        Array.isArray(response.contents) &&
+        response.contents.toString().trim().length === 0
+      );
+    if (!criteria) {
+      return false;
+    }
+
+    // check markup content is non-empty
+    const kind = (response.contents as lsProtocol.MarkupContent).kind;
+    if (kind === 'markdown') {
+      return (response.contents as lsProtocol.MarkupContent).value.trim().length > 0;
+    }
+
+    return true;
   }
 
   /**
