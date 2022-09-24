@@ -128,11 +128,11 @@ export class HoverCM extends CodeMirrorIntegration {
   protected cache: ResponseCache;
 
   private debounced_get_hover: Throttler<
-    Promise<lsProtocol.Hover | undefined | null>
+    Promise<{ hover: lsProtocol.Hover; position: IVirtualPosition } | null>
   >;
   private tooltip: FreeTooltip;
   private _previousHoverRequest: Promise<
-    Promise<lsProtocol.Hover | undefined | null>
+    Promise<{ hover: lsProtocol.Hover; position: IVirtualPosition } | null>
   > | null = null;
 
   constructor(options: IEditorIntegrationOptions) {
@@ -252,13 +252,12 @@ export class HoverCM extends CodeMirrorIntegration {
   }
 
   protected create_throttler() {
-    return new Throttler<Promise<lsProtocol.Hover | undefined | null>>(
-      this.on_hover,
-      {
-        limit: this.settings.composite.throttlerDelay,
-        edge: 'trailing'
-      }
-    );
+    return new Throttler<
+      Promise<{ hover: lsProtocol.Hover; position: IVirtualPosition } | null>
+    >(this.on_hover, {
+      limit: this.settings.composite.throttlerDelay,
+      edge: 'trailing'
+    });
   }
 
   afterChange(change: IEditorChange, root_position: IRootPosition) {
@@ -269,26 +268,37 @@ export class HoverCM extends CodeMirrorIntegration {
     this.remove_range_highlight();
   }
 
-  protected on_hover = async () => {
+  protected on_hover = async (pos: IVirtualPosition) => {
     if (
       !(
         this.connection.isReady &&
         this.connection.serverCapabilities?.hoverProvider
       )
     ) {
-      return;
+      return null;
     }
-    let position = this.virtual_position;
-    return await this.connection.clientRequests['textDocument/hover'].request({
+    // let position = this.virtual_position;
+    const hover = await this.connection.clientRequests[
+      'textDocument/hover'
+    ].request({
       textDocument: {
         // this might be wrong - should not it be using the specific virtual document?
         uri: this.virtual_document.document_info.uri
       },
       position: {
-        line: position.line,
-        character: position.ch
+        line: pos.line,
+        character: pos.ch
       }
     });
+
+    if (hover == null) {
+      return null;
+    } else {
+      return {
+        hover: hover,
+        position: pos
+      };
+    }
   };
 
   protected static get_markup_for_hover(
@@ -383,9 +393,16 @@ export class HoverCM extends CodeMirrorIntegration {
     }
 
     // check markup content is non-empty
-    const kind = (response.contents as lsProtocol.MarkupContent).kind;
-    if (kind === 'markdown') {
-      return (response.contents as lsProtocol.MarkupContent).value.trim().length > 0;
+    const contents = response.contents as lsProtocol.MarkupContent;
+    if (contents.kind === 'markdown') {
+      return contents.value.trim().length > 0;
+    }
+    const contentMarked = response.contents as {
+      language: string;
+      value: string;
+    };
+    if (contentMarked.language === 'markdown') {
+      return contents.value.trim().length > 0;
     }
 
     return true;
@@ -400,7 +417,10 @@ export class HoverCM extends CodeMirrorIntegration {
     const target = event.target;
 
     // if over an empty space in a line (and not over a token) then not worth checking
-    if (target == null || (target as HTMLElement).classList.contains('CodeMirror-line')) {
+    if (
+      target == null ||
+      (target as HTMLElement).classList.contains('CodeMirror-line')
+    ) {
       this.remove_range_highlight();
       return false;
     }
@@ -439,11 +459,6 @@ export class HoverCM extends CodeMirrorIntegration {
       !this.last_hover_character ||
       !is_equal(root_position, this.last_hover_character)
     ) {
-      let virtual_position =
-        this.virtual_editor.root_position_to_virtual_position(root_position);
-      this.virtual_position = virtual_position;
-      this.last_hover_character = root_position;
-
       // if we already sent a request, maybe it already covers the are of interest?
       // not harm waiting as the server won't be able to help us anyways
       if (this._previousHoverRequest) {
@@ -456,31 +471,46 @@ export class HoverCM extends CodeMirrorIntegration {
           })
         ]);
       }
-      let response_data = this.restore_from_cache(document, virtual_position);
 
+      const virtual_position =
+        this.virtual_editor.root_position_to_virtual_position(root_position);
+      this.virtual_position = virtual_position;
+      this.last_hover_character = root_position;
+
+      let response_data = this.restore_from_cache(document, virtual_position);
       if (response_data == null) {
-        const promise = this.debounced_get_hover.invoke();
+        const promise = this.debounced_get_hover.invoke(virtual_position);
         this._previousHoverRequest = promise;
         let response = await promise;
         if (this._previousHoverRequest === promise) {
           this._previousHoverRequest = null;
         }
-        if (response && this.is_useful_response(response)) {
+        if (response && this.is_useful_response(response.hover)) {
+          if (!is_equal(response.position, virtual_position)) {
+            this.console.error('!!!!! BINGO !!!!!');
+            this.console.error(`${response.position.line}`);
+            this.console.error(`${response.position.ch}`);
+            this.console.error(`${virtual_position.line}`);
+            this.console.error(`${virtual_position.ch}`);
+            this.remove_range_highlight();
+            return false;
+          }
           let ce_editor =
             this.virtual_editor.get_editor_at_root_position(root_position);
           let cm_editor =
             this.virtual_editor.ce_editor_to_cm_editor.get(ce_editor)!;
 
           let editor_range = this.get_editor_range(
-            response,
+            response.hover,
             root_position,
             token,
             cm_editor
           );
 
+          // Doesn't it have outdated and currrent data together?
           response_data = {
             response: this.add_range_if_needed(
-              response,
+              response.hover,
               editor_range,
               ce_editor
             ),
@@ -498,6 +528,20 @@ export class HoverCM extends CodeMirrorIntegration {
         // add delay even if cache has the data
         const delay_ms = this.settings.composite.throttlerDelay;
         await new Promise(resolve => setTimeout(resolve, delay_ms));
+      }
+
+      // Get information after the delay and cancel operation
+      // if the mouse travels greater than the threshold
+      if (token.string.trim() === 'keke') {
+        this.console.warn(' --- response.range');
+        this.console.warn(`[keke] ${response_data.response.range?.start.line}`);
+        this.console.warn(
+          `[keke] ${response_data.response.range?.start.character}`
+        );
+        this.console.warn(`[keke] ${response_data.response.range?.end.line}`);
+        this.console.warn(
+          `[keke] ${response_data.response.range?.end.character}`
+        );
       }
 
       return this.handleResponse(response_data, root_position, show_tooltip);
@@ -565,6 +609,7 @@ export class HoverCM extends CodeMirrorIntegration {
     };
   }
 
+  // if reponse.range is undefined, add the field based on editor_range
   private add_range_if_needed(
     response: lsProtocol.Hover,
     editor_range: IEditorRange,
