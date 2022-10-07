@@ -346,7 +346,6 @@ export class LSPConnector
 
     try {
       const kernelTimeout = this._kernel_timeout;
-
       if (
         this.use_kernel_completions &&
         this._kernel_connector &&
@@ -360,10 +359,27 @@ export class LSPConnector
         //  (for other extensions)
 
         // TODO: should it be cashed?
-        const kernelLanguage = await this._kernel_language();
+        const kernelLanguage = (
+          await this._kernel_language()
+        ).toLocaleLowerCase();
+
+        // NOTE: ipykernel provides language-agnostic path completion so it's worth keeping some
+        // while disregarding irrelevant ones.
+
+        const documentLanguage = document.language.toLocaleLowerCase();
+        const isKernelBash =
+          kernelLanguage === 'sh' || kernelLanguage === 'bash';
+        const isDocumentBash =
+          documentLanguage === 'sh' || documentLanguage === 'bash';
+
+        this.console.warn(`documentLanguage: ${documentLanguage}`);
+        this.console.warn(`kernelLanguage: ${kernelLanguage}`);
+        this.console.log('request: ', request);
 
         if (
-          document.language.toLocaleLowerCase() === kernelLanguage.toLowerCase()
+          kernelLanguage === documentLanguage ||
+          (kernelLanguage === 'python' && isDocumentBash) ||
+          (isKernelBash && isDocumentBash)
         ) {
           let default_kernel_promise = this._kernel_connector.fetch(request);
           let kernel_promise: Promise<CompletionHandler.IReply>;
