@@ -316,6 +316,8 @@ export class LSPConnector
     let cursor_in_root = this.transform_from_editor_to_root(cursor);
 
     let virtual_editor = this.virtual_editor;
+    const virtual_document_value = virtual_editor.virtual_document.value;
+    this.console.warn(`virtual_document_value: ${virtual_document_value}`);
 
     // find document for position
     let document = virtual_editor.document_at_root_position(start_in_root);
