@@ -358,12 +358,12 @@ export class HoverCM extends CodeMirrorIntegration {
 
     if (show_tooltip) {
       const markup = HoverCM.get_markup_for_hover(response);
-      let editor_position =
-        this.virtual_editor.root_position_to_editor(root_position);
-
+      const hover_editor_start = this.range_to_editor_range(
+        response.range
+      ).start;
       this.tooltip = this.lab_integration.tooltip.showOrCreate({
         markup,
-        position: editor_position,
+        position: hover_editor_start,
         ce_editor: response_data.ce_editor,
         adapter: this.adapter,
         className: 'lsp-hover'
