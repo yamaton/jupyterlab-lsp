@@ -39,8 +39,14 @@ export const hoverIcon = new LabIcon({
   svgstr: hoverSvg
 });
 
+// Hover with 'range' as required instead of optional.
+// Required<lsProtocol.Hover> is simple, but it'll become a headache
+// when more optional keys are introduced to the protocol in the future.
+type HoverWithRange = Omit<lsProtocol.Hover, 'range'> &
+  Required<Pick<lsProtocol.Hover, 'range'>>;
+
 interface IResponseData {
-  response: lsProtocol.Hover;
+  response: HoverWithRange;
   document: VirtualDocument;
   editor_range: IEditorRange;
   ce_editor: CodeEditor.IEditor;
@@ -122,15 +128,15 @@ function to_markup(
 
 export class HoverCM extends CodeMirrorIntegration {
   protected last_hover_character: IRootPosition | null = null;
-  private last_hover_response: lsProtocol.Hover | null;
+  private last_hover_response: HoverWithRange | null;
   protected hover_marker: CodeMirror.TextMarker | null = null;
   private virtual_position: IVirtualPosition;
   protected cache: ResponseCache;
 
-  private debounced_get_hover: Throttler<Promise<lsProtocol.Hover | null>>;
+  private debounced_get_hover: Throttler<Promise<HoverWithRange | null>>;
   private tooltip: FreeTooltip;
   private _previousHoverRequest: Promise<
-    Promise<lsProtocol.Hover | null>
+    Promise<HoverWithRange | null>
   > | null = null;
 
   constructor(options: IEditorIntegrationOptions) {
@@ -253,7 +259,7 @@ export class HoverCM extends CodeMirrorIntegration {
   }
 
   protected create_throttler() {
-    return new Throttler<Promise<lsProtocol.Hover | null>>(this.on_hover, {
+    return new Throttler<Promise<HoverWithRange | null>>(this.on_hover, {
       limit: this.settings.composite.throttlerDelay,
       edge: 'trailing'
     });
@@ -269,8 +275,8 @@ export class HoverCM extends CodeMirrorIntegration {
 
   protected on_hover = async (
     virtual_position: IVirtualPosition,
-    add_range_fn: (hover: lsProtocol.Hover) => lsProtocol.Hover
-  ): Promise<lsProtocol.Hover | null> => {
+    add_range_fn: (hover: lsProtocol.Hover) => HoverWithRange
+  ): Promise<HoverWithRange | null> => {
     if (
       !(
         this.connection.isReady &&
@@ -460,7 +466,7 @@ export class HoverCM extends CodeMirrorIntegration {
           this.virtual_editor.get_editor_at_root_position(root_position);
         const cm_editor =
           this.virtual_editor.ce_editor_to_cm_editor.get(ce_editor)!;
-        const add_range_fn = (hover: lsProtocol.Hover): lsProtocol.Hover => {
+        const add_range_fn = (hover: lsProtocol.Hover): HoverWithRange => {
           const editor_range = this.get_editor_range(
             hover,
             root_position,
@@ -481,7 +487,6 @@ export class HoverCM extends CodeMirrorIntegration {
         }
         if (
           response &&
-          response.range &&
           ProtocolCoordinates.isWithinRange(
             { line: virtual_position.line, character: virtual_position.ch },
             response.range
@@ -586,9 +591,12 @@ export class HoverCM extends CodeMirrorIntegration {
     response: lsProtocol.Hover,
     editor_range: IEditorRange,
     ce_editor: CodeEditor.IEditor
-  ): lsProtocol.Hover {
+  ): HoverWithRange {
     if (typeof response.range !== 'undefined') {
-      return response;
+      return {
+        ...response,
+        range: response.range
+      };
     }
     return {
       ...response,
