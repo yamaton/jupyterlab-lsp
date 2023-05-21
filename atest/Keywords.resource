@@ -8,6 +8,7 @@ Resource    Variables.resource
 Library     ./logcheck.py
 Library     ./ports.py
 Library     ./config.py
+Library     ./paths.py
 
 
 *** Keywords ***
@@ -41,13 +42,14 @@ Create Notebok Server Config
     Set Environment Variable
     ...    name=JUPYTER_CONFIG_DIR
     ...    value=${NOTEBOOK DIR}
+    ${jupyterlab_dir} =    Get JupyterLab Path
     ${extra_node_roots} =    Create List    ${ROOT}
     ${port} =    Get Unused Port
     Set Global Variable    ${PORT}    ${port}
     Set Global Variable    ${URL}    http://localhost:${PORT}${BASE URL}
     Copy File    ${FIXTURES}${/}${JPSERVER CONF JSON}    ${conf}
     Copy File    ${FIXTURES}${/}${JPSERVER CONF PY}    ${NOTEBOOK DIR}${/}${JPSERVER CONF PY}
-    Copy File    ${FIXTURES}${/}overrides.json    ${NOTEBOOK DIR}${/}overrides.json
+    Copy File    ${FIXTURES}${/}overrides.json    ${jupyterlab_dir}${/}settings${/}overrides.json
     Update Jupyter Config    ${conf}    ServerApp
     ...    base_url=${BASE URL}
     ...    port=${PORT}
@@ -90,6 +92,9 @@ Initialize User Settings
     Create File
     ...    ${SETTINGS DIR}${/}@jupyterlab${/}apputils-extension${/}palette.jupyterlab-settings
     ...    {"modal": false}
+    Create File
+    ...    ${SETTINGS DIR}${/}@jupyterlab${/}apputils-extension${/}notification.jupyterlab-settings
+    ...    {"fetchNews": "false"}
 
 Reset Plugin Settings
     [Arguments]    ${package}=jupyterlab-lsp    ${plugin}=plugin
@@ -381,7 +386,7 @@ Open File
 
 Open in Advanced Settings
     [Arguments]    ${plugin id}
-    IF    '${LAB VERSION}'.startswith('3.3')
+    IF    '${LAB VERSION}'.startswith('3.')
         Lab Command    Advanced JSON Settings Editor
     ELSE
         Lab Command    Advanced Settings Editor
